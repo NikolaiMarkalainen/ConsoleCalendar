@@ -5,27 +5,9 @@ class Program
     static async Task<int> Main(string[] args)
     {
         var fileOption = new Option<FileInfo?>(
-            name: "list",
-            description: "Lists the contents of the csv.",
-            isDefault: true,
-            parseArgument: result =>
-            {
-                if(result.Tokens.Count == 0)
-                {
-                    return new FileInfo("Events.csv");
-                }
-                string? filePath = result.Tokens.Single().Value;
-                if(!File.Exists(filePath))
-                {
-                    result.ErrorMessage = "File does not exsist";
-                    return null;
-                }
-                else
-                {
-                    return new FileInfo(filePath);
-                }
-            });
-
+            name: "--file",
+            description: "The CSV file to read",
+            getDefaultValue: () => new FileInfo("Events.csv"));
         var todayOption = new Option<DateTime>(
             name: "--today",
             description: "Lists all events that are marked today.");
@@ -38,36 +20,56 @@ class Program
            name: "--after",
            description: "List all events in the future." );
 
-        var dateArgument = new Argument<DateTime>(
+        var dateOption = new Option<DateTime>(
             name: "--date",
             description: "An event to set a calendar appointment");
         
-        var categoryArgument = new Argument<String>(
+        var categoryOption = new Option<String>(
             name: "--category",
             description: "A description field for calendar appointments");
 
-        var descriptionArgument = new Argument<String>(
+        var descriptionOption = new Option<String>(
             name: "--description",
             description: "A way to add a description to the calendar");
 
-
-        var rootCommand = new RootCommand("Sample app for System.CommandLine");
-        rootCommand.AddGlobalOption(fileOption);
-
-        var DaysCommand = new Command("days", "Initial command to start file")
+        var ListCommand = new Command("list", "Listing contents of the file")
         {
-            fileOption,
             todayOption,
             beforeOption,
-            afterOption
+            afterOption,
+            fileOption,
+            dateOption,
+            categoryOption,
+            descriptionOption,
+            
         };
 
-        var AddCommand = new Command("add", "Add an entry to the file");
-        AddCommand.AddArgument(dateArgument);
-        AddCommand.AddArgument(categoryArgument);
-        AddCommand.AddArgument(descriptionArgument);
+        var AddCommand = new Command("add", "Add an entry to the file")
+        {
+            dateOption,
+            categoryOption,
+            descriptionOption,
+            fileOption
+        };
 
-        DaysCommand.SetHandler((file, today, before, after) =>
+        var DaysCommand= new Command("days", "Initial command to start the file")
+        {
+            ListCommand,
+            AddCommand
+        };
+
+        var rootCommand = new RootCommand("sample");
+        rootCommand.AddCommand(ListCommand);
+        rootCommand.AddCommand(DaysCommand);
+        rootCommand.AddCommand(AddCommand);
+
+
+        DaysCommand.SetHandler((args) =>
+        {
+            Console.WriteLine("Use add or list for further usage");
+        });
+
+        ListCommand.SetHandler((file, today, before, after) =>
         {
             ReadFile(file!, today, before, after);
         }, fileOption, todayOption, beforeOption, afterOption);
@@ -75,7 +77,7 @@ class Program
         AddCommand.SetHandler((file, date, category, description) =>
         {
             AddEvent(file!, date, category, description);
-        }, fileOption, dateArgument, categoryArgument, descriptionArgument);
+        }, fileOption, dateOption, categoryOption, descriptionOption);
 
         return await rootCommand.InvokeAsync(args);
     }
@@ -90,8 +92,23 @@ class Program
 
         internal static void AddEvent(FileInfo file, DateTime date, string category, string description)
         {
+                if (file == null)
+                {
+                    throw new ArgumentNullException(nameof(file));
+                }
+
+                if (category == null)
+                {
+                    throw new ArgumentNullException(nameof(category));
+                }
+
+                if (description == null)
+                {
+                    throw new ArgumentNullException(nameof(description));
+                }
+                
             Console.WriteLine("Adding to file");
-            using StreamWriter? writer = file.AppendText();
+            using StreamWriter writer = file.AppendText();
             writer.WriteLine($"{Environment.NewLine}{Environment.NewLine}{date}");
             writer.WriteLine($"{Environment.NewLine}{category}");
             writer.WriteLine($"{Environment.NewLine}{description}");
